@@ -17,11 +17,7 @@ exports.signupValidator = [
     .notEmpty()
     .withMessage("Password is required")
     .isLength({ min: 6 })
-    .withMessage("Password must be at least 6 characters long")
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/)
-    .withMessage(
-      "Password must contain uppercase, lowercase, number, and special character",
-    ),
+    .withMessage("Password must be at least 6 characters long"),
 ];
 
 exports.loginValidator = [

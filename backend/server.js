@@ -22,7 +22,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/skills", skillRoutes);
-app.use("/api/contacts", contactRoutes);
+app.use("/api/contact", contactRoutes);
 
 app.get("/", (req, res) => {
   res.json({ success: true, message: "Portfolio API Running" });

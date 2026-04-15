@@ -1,118 +1,78 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+import axios from "axios";
 
-const request = async (endpoint, options = {}) => {
-  const token = localStorage.getItem("token");
+const API = axios.create({
+  baseURL: "http://localhost:5000/api",
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
 
-  const config = {
-    headers: {
-      "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
-    },
-    ...options,
-  };
+API.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  },
+);
 
-  if (options.body instanceof FormData) {
-    delete config.headers["Content-Type"];
-  }
+API.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("token");
+      window.location.href = "/admin/login";
+    }
+    return Promise.reject(error);
+  },
+);
 
-  const response = await fetch(`${API_URL}${endpoint}`, config);
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || "Something went wrong");
-  }
-
-  return data;
-};
-
+// Auth API
 export const authAPI = {
-  login: (credentials) =>
-    request("/auth/login", {
-      method: "POST",
-      body: JSON.stringify(credentials),
-    }),
-
-  register: (userData) =>
-    request("/auth/register", {
-      method: "POST",
-      body: JSON.stringify(userData),
-    }),
-
-  getMe: () => request("/auth/me"),
+  checkAdminExists: () => API.get("/auth/admin-exists"),
+  register: (data) => API.post("/auth/register", data),
+  login: (data) => API.post("/auth/login", data),
+  getMe: () => API.get("/auth/me"),
 };
 
+// Projects API
 export const projectsAPI = {
-  getAll: (params = "") => request(`/projects${params}`),
-
-  getFeatured: () => request("/projects/featured"),
-
-  getOne: (id) => request(`/projects/${id}`),
-
-  getBySlug: (slug) => request(`/projects/slug/${slug}`),
-
-  create: (formData) =>
-    request("/projects", {
-      method: "POST",
-      body: formData,
+  getAll: () => API.get("/projects"),
+  getFeatured: () => API.get("/projects/featured"),
+  getBySlug: (slug) => API.get(`/projects/slug/${slug}`),
+  getById: (id) => API.get(`/projects/${id}`),
+  create: (data) =>
+    API.post("/projects", data, {
+      headers: { "Content-Type": "multipart/form-data" },
     }),
-
-  update: (id, formData) =>
-    request(`/projects/${id}`, {
-      method: "PUT",
-      body: formData,
+  update: (id, data) =>
+    API.put(`/projects/${id}`, data, {
+      headers: { "Content-Type": "multipart/form-data" },
     }),
-
-  delete: (id) =>
-    request(`/projects/${id}`, {
-      method: "DELETE",
-    }),
+  delete: (id) => API.delete(`/projects/${id}`),
 };
 
+// Skills API
 export const skillsAPI = {
-  getAll: (category = "") =>
-    request(`/skills${category ? `?category=${category}` : ""}`),
-
-  getOne: (id) => request(`/skills/${id}`),
-
-  create: (skillData) =>
-    request("/skills", {
-      method: "POST",
-      body: JSON.stringify(skillData),
-    }),
-
-  update: (id, skillData) =>
-    request(`/skills/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(skillData),
-    }),
-
-  delete: (id) =>
-    request(`/skills/${id}`, {
-      method: "DELETE",
-    }),
+  getAll: () => API.get("/skills"),
+  getById: (id) => API.get(`/skills/${id}`),
+  create: (data) => API.post("/skills", data),
+  update: (id, data) => API.put(`/skills/${id}`, data),
+  delete: (id) => API.delete(`/skills/${id}`),
 };
 
+// Contact API
 export const contactAPI = {
-  submit: (contactData) =>
-    request("/contact", {
-      method: "POST",
-      body: JSON.stringify(contactData),
-    }),
-
-  getAll: (params = "") => request(`/contact${params}`),
-
-  getOne: (id) => request(`/contact/${id}`),
-
-  markAsRead: (id) =>
-    request(`/contact/${id}/read`, {
-      method: "PATCH",
-    }),
-
-  delete: (id) =>
-    request(`/contact/${id}`, {
-      method: "DELETE",
-    }),
-
-  getUnreadCount: () => request("/contact/unread-count"),
+  submit: (data) => API.post("/contact", data),
+  getAll: () => API.get("/contact"),
+  getUnreadCount: () => API.get("/contact/unread-count"),
+  getById: (id) => API.get(`/contact/${id}`),
+  markAsRead: (id) => API.patch(`/contact/${id}/read`),
+  delete: (id) => API.delete(`/contact/${id}`),
 };
+
+export default API;

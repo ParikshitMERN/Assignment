@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import { authAPI } from "../services/api";
 
 const AuthContext = createContext(null);
 
@@ -14,10 +15,7 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem("token");
     if (token) {
       try {
-        const response = await fetch("http://localhost:5000/api/auth/me", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await response.json();
+        const { data } = await authAPI.getMe();
         if (data.success) {
           setUser(data.data);
         } else {

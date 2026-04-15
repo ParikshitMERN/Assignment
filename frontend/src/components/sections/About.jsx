@@ -4,7 +4,6 @@ const About = () => {
     <section id="about" className="py-20 bg-white">
       <div className="max-w-6xl mx-auto px-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          {/* Image */}
           <div className="relative">
             <div className="aspect-square bg-white flex items-center justify-center">
               <span className="text-gray-400 text-lg">
@@ -15,7 +14,6 @@ const About = () => {
                 />
               </span>
             </div>
-            {/* Gold accent */}
             <div className="absolute -bottom-4 -right-4 w-full h-full border-4 border-gold-400 -z-10 hidden lg:block"></div>
           </div>
 
@@ -41,7 +39,6 @@ const About = () => {
               industry trends.
             </p>
 
-            {/* Info Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
               <div className="flex items-center space-x-3">
                 <div className="w-2 h-2 bg-gold-400"></div>

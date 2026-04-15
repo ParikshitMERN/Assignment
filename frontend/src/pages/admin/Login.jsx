@@ -1,13 +1,31 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { authAPI } from "../../services/api";
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [adminExists, setAdminExists] = useState(true);
   const navigate = useNavigate();
   const { login } = useAuth();
+
+  useEffect(() => {
+    checkAdmin();
+  }, []);
+
+  const checkAdmin = async () => {
+    try {
+      const { data } = await authAPI.checkAdminExists();
+      setAdminExists(data.exists);
+      if (!data.exists) {
+        navigate("/admin/register");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -19,16 +37,11 @@ const Login = () => {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:5000/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      const data = await response.json();
+      const { data } = await authAPI.login(formData);
 
       if (data.token) {
         if (data.role !== "admin") {
-          setError("You don't have admin privileges");
+          setError("Access denied");
           return;
         }
         login(data);
@@ -37,7 +50,7 @@ const Login = () => {
         throw new Error(data.message || "Login failed");
       }
     } catch (error) {
-      setError(error.message);
+      setError(error.response?.data?.message || error.message);
     } finally {
       setLoading(false);
     }
@@ -47,29 +60,29 @@ const Login = () => {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-primary-900">
-            Port<span className="text-gold-400">folio</span>
-          </h1>
-          <p className="text-gray-500 mt-2">Admin Login</p>
+          <h1 className="text-2xl font-semibold text-gray-900">Admin Login</h1>
+          <p className="text-gray-500 mt-2">Sign in to manage your portfolio</p>
         </div>
 
-        <div className="bg-white p-8 shadow-sm">
+        <div className="bg-white p-8 border border-gray-200">
           <form onSubmit={handleSubmit}>
-            <div className="mb-6">
-              <label className="block text-dark font-medium mb-2">Email</label>
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email
+              </label>
               <input
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-3 border border-gray-200 focus:border-primary-900 focus:outline-none"
+                className="w-full px-3 py-2 border border-gray-300 focus:border-primary-900 focus:outline-none text-sm"
                 placeholder="your@email.com"
               />
             </div>
 
-            <div className="mb-6">
-              <label className="block text-dark font-medium mb-2">
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Password
               </label>
               <input
@@ -78,13 +91,13 @@ const Login = () => {
                 value={formData.password}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-3 border border-gray-200 focus:border-primary-900 focus:outline-none"
+                className="w-full px-3 py-2 border border-gray-300 focus:border-primary-900 focus:outline-none text-sm"
                 placeholder="••••••••"
               />
             </div>
 
             {error && (
-              <div className="mb-6 p-4 bg-red-50 text-red-800 text-sm">
+              <div className="mb-5 p-3 bg-red-50 text-red-700 text-sm">
                 {error}
               </div>
             )}
@@ -92,20 +105,11 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary-900 text-white py-4 hover:bg-primary-800 transition-colors disabled:opacity-50"
+              className="w-full bg-primary-900 text-white py-2.5 text-sm font-medium hover:bg-primary-800 disabled:opacity-50"
             >
-              {loading ? "Logging in..." : "Login"}
+              {loading ? "Signing in..." : "Sign In"}
             </button>
           </form>
-          <p className="text-center mt-6 text-gray-500">
-            Don't have an account?{" "}
-            <Link
-              to="/admin/register"
-              className="text-gold-400 hover:underline"
-            >
-              Register
-            </Link>
-          </p>
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { projectsAPI } from "../../services/api";
 
 const Projects = () => {
   const [projects, setProjects] = useState([]);
@@ -10,10 +11,7 @@ const Projects = () => {
 
   const fetchProjects = async () => {
     try {
-      const response = await fetch(
-        "http://localhost:5000/api/projects/featured",
-      );
-      const data = await response.json();
+      const { data } = await projectsAPI.getFeatured();
       setProjects(data.data || []);
     } catch (error) {
       console.error("Error:", error);
@@ -25,7 +23,6 @@ const Projects = () => {
   return (
     <section id="projects" className="py-20 bg-gray-50">
       <div className="max-w-6xl mx-auto px-4">
-        {/* Title */}
         <div className="text-center mb-12">
           <span className="text-gold-400 font-medium uppercase text-sm">
             My Work
@@ -36,7 +33,6 @@ const Projects = () => {
           <div className="w-16 h-1 bg-gold-400 mt-4 mx-auto"></div>
         </div>
 
-        {/* Projects Grid */}
         {loading ? (
           <div className="flex justify-center py-20">
             <div className="w-8 h-8 border-4 border-gray-200 border-t-primary-900 rounded-full animate-spin"></div>
@@ -50,7 +46,6 @@ const Projects = () => {
                 key={project._id}
                 className="bg-white border border-gray-100 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
               >
-                {/* Image */}
                 <div className="aspect-video bg-gray-100 relative overflow-hidden">
                   {project.image?.url ? (
                     <img
@@ -65,7 +60,6 @@ const Projects = () => {
                   )}
                 </div>
 
-                {/* Content */}
                 <div className="p-6">
                   <span className="text-gold-400 text-sm uppercase">
                     {project.category}
@@ -77,7 +71,6 @@ const Projects = () => {
                     {project.shortDescription || project.description}
                   </p>
 
-                  {/* Technologies */}
                   <div className="flex flex-wrap gap-2 mt-4">
                     {project.technologies?.slice(0, 3).map((tech, i) => (
                       <span
@@ -89,7 +82,6 @@ const Projects = () => {
                     ))}
                   </div>
 
-                  {/* Links */}
                   <div className="flex gap-4 mt-4">
                     {project.liveUrl && (
                       <a

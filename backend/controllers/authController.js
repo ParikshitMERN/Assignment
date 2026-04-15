@@ -1,9 +1,27 @@
 const User = require("../models/User");
 const generateToken = require("../utils/generateToken");
 
+exports.checkAdminExists = async (req, res) => {
+  try {
+    const adminExists = await User.findOne({ role: "admin" });
+    res.json({ exists: !!adminExists });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
+
+    // Check if admin already exists
+    const adminExists = await User.findOne({ role: "admin" });
+    if (adminExists) {
+      return res.status(403).json({
+        success: false,
+        message: "Admin already registered. Registration is closed.",
+      });
+    }
 
     const userExists = await User.findOne({ email });
     if (userExists) {
@@ -12,11 +30,8 @@ exports.registerUser = async (req, res) => {
         .json({ success: false, message: "User already exists" });
     }
 
-    // First user becomes admin
-    const userCount = await User.countDocuments();
-    const role = userCount === 0 ? "admin" : "user";
-
-    const user = await User.create({ name, email, password, role });
+    // First user is admin
+    const user = await User.create({ name, email, password, role: "admin" });
 
     res.status(201).json({
       success: true,
@@ -66,10 +81,7 @@ exports.getMe = async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
-    res.json({
-      success: true,
-      data: user,
-    });
+    res.json({ success: true, data: user });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

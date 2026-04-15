@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
+import { projectsAPI } from "../../services/api";
 
 const ManageProjects = () => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -14,6 +17,7 @@ const ManageProjects = () => {
     liveUrl: "",
     githubUrl: "",
     featured: false,
+    image: null,
   });
 
   useEffect(() => {
@@ -22,8 +26,7 @@ const ManageProjects = () => {
 
   const fetchProjects = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/projects");
-      const data = await response.json();
+      const { data } = await projectsAPI.getAll();
       setProjects(data.data || []);
     } catch (error) {
       console.error("Error:", error);
@@ -37,35 +40,43 @@ const ManageProjects = () => {
     setFormData({ ...formData, [name]: type === "checkbox" ? checked : value });
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setFormData({ ...formData, image: file });
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const token = localStorage.getItem("token");
+    setSaving(true);
 
     const form = new FormData();
-    Object.keys(formData).forEach((key) => {
-      form.append(key, formData[key]);
-    });
+    form.append("title", formData.title);
+    form.append("description", formData.description);
+    form.append("technologies", formData.technologies);
+    form.append("category", formData.category);
+    form.append("liveUrl", formData.liveUrl);
+    form.append("githubUrl", formData.githubUrl);
+    form.append("featured", formData.featured);
+
+    if (formData.image) {
+      form.append("image", formData.image);
+    }
 
     try {
-      const url = editingProject
-        ? `http://localhost:5000/api/projects/${editingProject._id}`
-        : "http://localhost:5000/api/projects";
-
-      const response = await fetch(url, {
-        method: editingProject ? "PUT" : "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        fetchProjects();
-        closeModal();
+      if (editingProject) {
+        await projectsAPI.update(editingProject._id, form);
       } else {
-        alert(data.message);
+        await projectsAPI.create(form);
       }
+      fetchProjects();
+      closeModal();
     } catch (error) {
-      alert(error.message);
+      alert(error.response?.data?.message || "Something went wrong");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -79,29 +90,27 @@ const ManageProjects = () => {
       liveUrl: project.liveUrl || "",
       githubUrl: project.githubUrl || "",
       featured: project.featured,
+      image: null,
     });
+    setImagePreview(project.image?.url || null);
     setShowModal(true);
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this project?"))
-      return;
-    const token = localStorage.getItem("token");
+    if (!window.confirm("Delete this project?")) return;
 
     try {
-      await fetch(`http://localhost:5000/api/projects/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await projectsAPI.delete(id);
       fetchProjects();
     } catch (error) {
-      alert(error.message);
+      alert(error.response?.data?.message || "Something went wrong");
     }
   };
 
   const closeModal = () => {
     setShowModal(false);
     setEditingProject(null);
+    setImagePreview(null);
     setFormData({
       title: "",
       description: "",
@@ -110,78 +119,105 @@ const ManageProjects = () => {
       liveUrl: "",
       githubUrl: "",
       featured: false,
+      image: null,
     });
   };
 
   return (
     <AdminLayout>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-        <h1 className="text-2xl md:text-3xl font-bold text-primary-900">
-          Manage Projects
-        </h1>
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">Projects</h1>
+          <p className="text-gray-500 mt-1">{projects.length} total projects</p>
+        </div>
         <button
           onClick={() => setShowModal(true)}
-          className="bg-primary-900 text-white px-6 py-3 hover:bg-primary-800 transition-colors"
+          className="bg-primary-900 text-white px-4 py-2 text-sm font-medium hover:bg-primary-800 transition-colors"
         >
-          + Add Project
+          Add Project
         </button>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-20">
-          <div className="w-8 h-8 border-4 border-gray-200 border-t-primary-900 rounded-full animate-spin"></div>
+          <div className="w-6 h-6 border-2 border-gray-300 border-t-primary-900 rounded-full animate-spin"></div>
         </div>
       ) : projects.length === 0 ? (
-        <p className="text-gray-500 text-center py-20">No projects yet.</p>
+        <div className="bg-white border border-gray-200 p-12 text-center">
+          <p className="text-gray-500">No projects yet.</p>
+          <button
+            onClick={() => setShowModal(true)}
+            className="mt-4 text-primary-900 font-medium hover:underline"
+          >
+            Add your first project
+          </button>
+        </div>
       ) : (
-        <div className="bg-white shadow-sm overflow-x-auto">
-          <table className="w-full min-w-[600px]">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">
+        <div className="bg-white border border-gray-200">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-200 text-left">
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Image
+                </th>
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Title
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
                   Category
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
                   Featured
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">
+                <th className="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {projects.map((project) => (
-                <tr key={project._id}>
-                  <td className="px-6 py-4 text-dark font-medium">
-                    {project.title}
+                <tr key={project._id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <div className="w-16 h-12 bg-gray-100 overflow-hidden">
+                      {project.image?.url ? (
+                        <img
+                          src={project.image.url}
+                          alt={project.title}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                          No img
+                        </div>
+                      )}
+                    </div>
                   </td>
-                  <td className="px-6 py-4 text-gray-500 capitalize">
+                  <td className="px-6 py-4">
+                    <p className="font-medium text-gray-900">{project.title}</p>
+                    <p className="text-sm text-gray-500 sm:hidden">
+                      {project.category}
+                    </p>
+                  </td>
+                  <td className="px-6 py-4 text-gray-600 capitalize hidden sm:table-cell">
                     {project.category}
                   </td>
-                  <td className="px-6 py-4">
-                    {project.featured ? (
-                      <span className="px-2 py-1 bg-green-100 text-green-800 text-xs">
-                        Yes
-                      </span>
-                    ) : (
-                      <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs">
-                        No
-                      </span>
-                    )}
+                  <td className="px-6 py-4 hidden md:table-cell">
+                    <span
+                      className={`text-sm ${project.featured ? "text-green-600" : "text-gray-400"}`}
+                    >
+                      {project.featured ? "Yes" : "No"}
+                    </span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 text-right">
                     <button
                       onClick={() => handleEdit(project)}
-                      className="text-primary-900 hover:text-gold-400 mr-4"
+                      className="text-gray-600 hover:text-primary-900 text-sm mr-4"
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => handleDelete(project._id)}
-                      className="text-red-500 hover:text-red-700"
+                      className="text-gray-600 hover:text-red-600 text-sm"
                     >
                       Delete
                     </button>
@@ -195,22 +231,54 @@ const ManageProjects = () => {
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-primary-900">
-                {editingProject ? "Edit Project" : "Add Project"}
+          <div className="bg-white w-full max-w-xl max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="font-semibold text-gray-900">
+                {editingProject ? "Edit Project" : "New Project"}
               </h2>
               <button
                 onClick={closeModal}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
+                className="text-gray-400 hover:text-gray-600"
               >
-                ×
+                ✕
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="p-6 space-y-5">
               <div>
-                <label className="block text-dark font-medium mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Project Image
+                </label>
+                <div className="flex items-start gap-4">
+                  <div className="w-32 h-24 bg-gray-100 border border-gray-200 overflow-hidden flex-shrink-0">
+                    {imagePreview ? (
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+                        No image
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:border-0 file:text-sm file:font-medium file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                    />
+                    <p className="text-xs text-gray-400 mt-2">
+                      PNG, JPG up to 5MB
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Title
                 </label>
                 <input
@@ -219,12 +287,12 @@ const ManageProjects = () => {
                   value={formData.title}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-3 border border-gray-200 focus:border-primary-900 focus:outline-none"
+                  className="w-full px-3 py-2 border border-gray-300 focus:border-primary-900 focus:outline-none text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-dark font-medium mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Description
                 </label>
                 <textarea
@@ -233,13 +301,13 @@ const ManageProjects = () => {
                   onChange={handleChange}
                   required
                   rows={4}
-                  className="w-full px-4 py-3 border border-gray-200 focus:border-primary-900 focus:outline-none resize-none"
+                  className="w-full px-3 py-2 border border-gray-300 focus:border-primary-900 focus:outline-none text-sm resize-none"
                 ></textarea>
               </div>
 
               <div>
-                <label className="block text-dark font-medium mb-2">
-                  Technologies (comma separated)
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Technologies
                 </label>
                 <input
                   type="text"
@@ -247,20 +315,21 @@ const ManageProjects = () => {
                   value={formData.technologies}
                   onChange={handleChange}
                   placeholder="React, Node.js, MongoDB"
-                  className="w-full px-4 py-3 border border-gray-200 focus:border-primary-900 focus:outline-none"
+                  className="w-full px-3 py-2 border border-gray-300 focus:border-primary-900 focus:outline-none text-sm"
                 />
+                <p className="text-xs text-gray-400 mt-1">Comma separated</p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-dark font-medium mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Category
                   </label>
                   <select
                     name="category"
                     value={formData.category}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-200 focus:border-primary-900 focus:outline-none"
+                    className="w-full px-3 py-2 border border-gray-300 focus:border-primary-900 focus:outline-none text-sm"
                   >
                     <option value="web">Web</option>
                     <option value="mobile">Mobile</option>
@@ -270,23 +339,22 @@ const ManageProjects = () => {
                   </select>
                 </div>
 
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    name="featured"
-                    id="featured"
-                    checked={formData.featured}
-                    onChange={handleChange}
-                    className="w-5 h-5 mr-3"
-                  />
-                  <label htmlFor="featured" className="text-dark font-medium">
-                    Featured Project
+                <div className="flex items-end pb-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="featured"
+                      checked={formData.featured}
+                      onChange={handleChange}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm text-gray-700">Featured</span>
                   </label>
                 </div>
               </div>
 
               <div>
-                <label className="block text-dark font-medium mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Live URL
                 </label>
                 <input
@@ -294,13 +362,13 @@ const ManageProjects = () => {
                   name="liveUrl"
                   value={formData.liveUrl}
                   onChange={handleChange}
-                  placeholder="https://example.com"
-                  className="w-full px-4 py-3 border border-gray-200 focus:border-primary-900 focus:outline-none"
+                  placeholder="https://"
+                  className="w-full px-3 py-2 border border-gray-300 focus:border-primary-900 focus:outline-none text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-dark font-medium mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   GitHub URL
                 </label>
                 <input
@@ -308,22 +376,23 @@ const ManageProjects = () => {
                   name="githubUrl"
                   value={formData.githubUrl}
                   onChange={handleChange}
-                  placeholder="https://github.com/username/repo"
-                  className="w-full px-4 py-3 border border-gray-200 focus:border-primary-900 focus:outline-none"
+                  placeholder="https://github.com/"
+                  className="w-full px-3 py-2 border border-gray-300 focus:border-primary-900 focus:outline-none text-sm"
                 />
               </div>
 
-              <div className="flex gap-4">
+              <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
-                  className="bg-primary-900 text-white px-6 py-3 hover:bg-primary-800 transition-colors"
+                  disabled={saving}
+                  className="bg-primary-900 text-white px-4 py-2 text-sm font-medium hover:bg-primary-800 disabled:opacity-50"
                 >
-                  {editingProject ? "Update Project" : "Add Project"}
+                  {saving ? "Saving..." : editingProject ? "Update" : "Create"}
                 </button>
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="border border-gray-300 text-gray-700 px-6 py-3 hover:bg-gray-50 transition-colors"
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
                 >
                   Cancel
                 </button>

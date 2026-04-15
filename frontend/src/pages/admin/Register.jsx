@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { authAPI } from "../../services/api";
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -8,9 +9,27 @@ const Register = () => {
     password: "",
   });
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    checkAdmin();
+  }, []);
+
+  const checkAdmin = async () => {
+    try {
+      const { data } = await authAPI.checkAdminExists();
+      if (data.exists) {
+        navigate("/admin/login");
+      }
+    } catch (error) {
+      console.error("Error checking admin:", error);
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -22,12 +41,7 @@ const Register = () => {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:5000/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      const data = await response.json();
+      const { data } = await authAPI.register(formData);
 
       if (data.token) {
         setSuccess(true);
@@ -36,48 +50,59 @@ const Register = () => {
         throw new Error(data.message || "Registration failed");
       }
     } catch (error) {
-      setError(error.message);
+      setError(error.response?.data?.message || error.message);
     } finally {
       setLoading(false);
     }
   };
 
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-gray-300 border-t-primary-900 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-primary-900">
-            Port<span className="text-gold-400">folio</span>
+          <h1 className="text-2xl font-semibold text-gray-900">
+            Create Admin Account
           </h1>
-          <p className="text-gray-500 mt-2">Create Admin Account</p>
+          <p className="text-gray-500 mt-2">Set up your portfolio admin</p>
         </div>
 
-        <div className="bg-white p-8 shadow-sm">
+        <div className="bg-white p-8 border border-gray-200">
           {success ? (
-            <div className="text-center">
-              <div className="text-green-500 text-5xl mb-4">✓</div>
-              <p className="text-green-700 font-medium">
-                Registration successful!
+            <div className="text-center py-4">
+              <p className="text-green-600 font-medium">
+                Account created successfully!
               </p>
-              <p className="text-gray-500 mt-2">Redirecting to login...</p>
+              <p className="text-gray-500 text-sm mt-2">
+                Redirecting to login...
+              </p>
             </div>
           ) : (
             <form onSubmit={handleSubmit}>
-              <div className="mb-6">
-                <label className="block text-dark font-medium mb-2">Name</label>
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Name
+                </label>
                 <input
                   type="text"
                   name="name"
                   value={formData.name}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-3 border border-gray-200 focus:border-primary-900 focus:outline-none"
+                  className="w-full px-3 py-2 border border-gray-300 focus:border-primary-900 focus:outline-none text-sm"
                   placeholder="Your name"
                 />
               </div>
 
-              <div className="mb-6">
-                <label className="block text-dark font-medium mb-2">
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Email
                 </label>
                 <input
@@ -86,13 +111,13 @@ const Register = () => {
                   value={formData.email}
                   onChange={handleChange}
                   required
-                  className="w-full px-4 py-3 border border-gray-200 focus:border-primary-900 focus:outline-none"
+                  className="w-full px-3 py-2 border border-gray-300 focus:border-primary-900 focus:outline-none text-sm"
                   placeholder="your@email.com"
                 />
               </div>
 
-              <div className="mb-6">
-                <label className="block text-dark font-medium mb-2">
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Password
                 </label>
                 <input
@@ -102,13 +127,13 @@ const Register = () => {
                   onChange={handleChange}
                   required
                   minLength={6}
-                  className="w-full px-4 py-3 border border-gray-200 focus:border-primary-900 focus:outline-none"
-                  placeholder="••••••••"
+                  className="w-full px-3 py-2 border border-gray-300 focus:border-primary-900 focus:outline-none text-sm"
+                  placeholder="Min 6 characters"
                 />
               </div>
 
               {error && (
-                <div className="mb-6 p-4 bg-red-50 text-red-800 text-sm">
+                <div className="mb-5 p-3 bg-red-50 text-red-700 text-sm">
                   {error}
                 </div>
               )}
@@ -116,20 +141,10 @@ const Register = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-primary-900 text-white py-4 hover:bg-primary-800 transition-colors disabled:opacity-50"
+                className="w-full bg-primary-900 text-white py-2.5 text-sm font-medium hover:bg-primary-800 disabled:opacity-50"
               >
-                {loading ? "Creating account..." : "Register"}
+                {loading ? "Creating..." : "Create Account"}
               </button>
-
-              <p className="text-center mt-6 text-gray-500">
-                Already have an account?{" "}
-                <Link
-                  to="/admin/login"
-                  className="text-gold-400 hover:underline"
-                >
-                  Login
-                </Link>
-              </p>
             </form>
           )}
         </div>

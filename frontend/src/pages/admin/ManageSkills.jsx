@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "../../components/admin/AdminLayout";
+import { skillsAPI } from "../../services/api";
 
 const ManageSkills = () => {
   const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingSkill, setEditingSkill] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     category: "frontend",
@@ -18,8 +20,7 @@ const ManageSkills = () => {
 
   const fetchSkills = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/skills");
-      const data = await response.json();
+      const { data } = await skillsAPI.getAll();
       setSkills(data.data || []);
     } catch (error) {
       console.error("Error:", error);
@@ -35,31 +36,20 @@ const ManageSkills = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const token = localStorage.getItem("token");
+    setSaving(true);
 
     try {
-      const url = editingSkill
-        ? `http://localhost:5000/api/skills/${editingSkill._id}`
-        : "http://localhost:5000/api/skills";
-
-      const response = await fetch(url, {
-        method: editingSkill ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(formData),
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        fetchSkills();
-        closeModal();
+      if (editingSkill) {
+        await skillsAPI.update(editingSkill._id, formData);
       } else {
-        alert(data.message);
+        await skillsAPI.create(formData);
       }
+      fetchSkills();
+      closeModal();
     } catch (error) {
-      alert(error.message);
+      alert(error.response?.data?.message || "Something went wrong");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -74,17 +64,13 @@ const ManageSkills = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this skill?")) return;
-    const token = localStorage.getItem("token");
+    if (!window.confirm("Delete this skill?")) return;
 
     try {
-      await fetch(`http://localhost:5000/api/skills/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await skillsAPI.delete(id);
       fetchSkills();
     } catch (error) {
-      alert(error.message);
+      alert(error.response?.data?.message || "Something went wrong");
     }
   };
 
@@ -94,107 +80,112 @@ const ManageSkills = () => {
     setFormData({ name: "", category: "frontend", proficiency: 50 });
   };
 
+  const groupedSkills = skills.reduce((acc, skill) => {
+    const cat = skill.category || "other";
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(skill);
+    return acc;
+  }, {});
+
   return (
     <AdminLayout>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-        <h1 className="text-2xl md:text-3xl font-bold text-primary-900">
-          Manage Skills
-        </h1>
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">Skills</h1>
+          <p className="text-gray-500 mt-1">{skills.length} total skills</p>
+        </div>
         <button
           onClick={() => setShowModal(true)}
-          className="bg-primary-900 text-white px-6 py-3 hover:bg-primary-800 transition-colors"
+          className="bg-primary-900 text-white px-4 py-2 text-sm font-medium hover:bg-primary-800 transition-colors"
         >
-          + Add Skill
+          Add Skill
         </button>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-20">
-          <div className="w-8 h-8 border-4 border-gray-200 border-t-primary-900 rounded-full animate-spin"></div>
+          <div className="w-6 h-6 border-2 border-gray-300 border-t-primary-900 rounded-full animate-spin"></div>
         </div>
       ) : skills.length === 0 ? (
-        <p className="text-gray-500 text-center py-20">No skills yet.</p>
+        <div className="bg-white border border-gray-200 p-12 text-center">
+          <p className="text-gray-500">No skills yet.</p>
+          <button
+            onClick={() => setShowModal(true)}
+            className="mt-4 text-primary-900 font-medium hover:underline"
+          >
+            Add your first skill
+          </button>
+        </div>
       ) : (
-        <div className="bg-white shadow-sm overflow-x-auto">
-          <table className="w-full min-w-[500px]">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">
-                  Name
-                </th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">
-                  Category
-                </th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">
-                  Proficiency
-                </th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-500">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {skills.map((skill) => (
-                <tr key={skill._id}>
-                  <td className="px-6 py-4 text-dark font-medium">
-                    {skill.name}
-                  </td>
-                  <td className="px-6 py-4 text-gray-500 capitalize">
-                    {skill.category}
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div className="space-y-6">
+          {Object.entries(groupedSkills).map(([category, categorySkills]) => (
+            <div key={category} className="bg-white border border-gray-200">
+              <div className="px-6 py-3 border-b border-gray-200">
+                <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider">
+                  {category}
+                </h3>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {categorySkills.map((skill) => (
+                  <div
+                    key={skill._id}
+                    className="px-6 py-4 flex items-center justify-between hover:bg-gray-50"
+                  >
+                    <div className="flex items-center gap-4">
+                      <span className="font-medium text-gray-900">
+                        {skill.name}
+                      </span>
+                      <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden hidden sm:block">
                         <div
-                          className="h-full bg-gold-400"
+                          className="h-full bg-primary-900"
                           style={{ width: `${skill.proficiency}%` }}
                         ></div>
                       </div>
-                      <span className="text-sm text-gray-500">
+                      <span className="text-sm text-gray-400">
                         {skill.proficiency}%
                       </span>
                     </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <button
-                      onClick={() => handleEdit(skill)}
-                      className="text-primary-900 hover:text-gold-400 mr-4"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(skill._id)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <div>
+                      <button
+                        onClick={() => handleEdit(skill)}
+                        className="text-gray-600 hover:text-primary-900 text-sm mr-4"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(skill._id)}
+                        className="text-gray-600 hover:text-red-600 text-sm"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white w-full max-w-md">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-primary-900">
-                {editingSkill ? "Edit Skill" : "Add Skill"}
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="font-semibold text-gray-900">
+                {editingSkill ? "Edit Skill" : "New Skill"}
               </h2>
               <button
                 onClick={closeModal}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
+                className="text-gray-400 hover:text-gray-600"
               >
-                ×
+                ✕
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="p-6 space-y-5">
               <div>
-                <label className="block text-dark font-medium mb-2">
-                  Skill Name
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Name
                 </label>
                 <input
                   type="text"
@@ -203,19 +194,19 @@ const ManageSkills = () => {
                   onChange={handleChange}
                   required
                   placeholder="React, Node.js, etc."
-                  className="w-full px-4 py-3 border border-gray-200 focus:border-primary-900 focus:outline-none"
+                  className="w-full px-3 py-2 border border-gray-300 focus:border-primary-900 focus:outline-none text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-dark font-medium mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Category
                 </label>
                 <select
                   name="category"
                   value={formData.category}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-200 focus:border-primary-900 focus:outline-none"
+                  className="w-full px-3 py-2 border border-gray-300 focus:border-primary-900 focus:outline-none text-sm"
                 >
                   <option value="frontend">Frontend</option>
                   <option value="backend">Backend</option>
@@ -227,7 +218,7 @@ const ManageSkills = () => {
               </div>
 
               <div>
-                <label className="block text-dark font-medium mb-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Proficiency: {formData.proficiency}%
                 </label>
                 <input
@@ -241,17 +232,18 @@ const ManageSkills = () => {
                 />
               </div>
 
-              <div className="flex gap-4">
+              <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
-                  className="bg-primary-900 text-white px-6 py-3 hover:bg-primary-800 transition-colors"
+                  disabled={saving}
+                  className="bg-primary-900 text-white px-4 py-2 text-sm font-medium hover:bg-primary-800 disabled:opacity-50"
                 >
-                  {editingSkill ? "Update Skill" : "Add Skill"}
+                  {saving ? "Saving..." : editingSkill ? "Update" : "Create"}
                 </button>
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="border border-gray-300 text-gray-700 px-6 py-3 hover:bg-gray-50 transition-colors"
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
                 >
                   Cancel
                 </button>

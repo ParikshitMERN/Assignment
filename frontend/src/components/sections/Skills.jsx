@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { skillsAPI } from "../../services/api";
 
 const Skills = () => {
   const [skills, setSkills] = useState([]);
@@ -10,8 +11,7 @@ const Skills = () => {
 
   const fetchSkills = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/skills");
-      const data = await response.json();
+      const { data } = await skillsAPI.getAll();
       setSkills(data.data || []);
     } catch (error) {
       console.error("Error:", error);
@@ -20,7 +20,6 @@ const Skills = () => {
     }
   };
 
-  // Group skills by category
   const groupedSkills = skills.reduce((acc, skill) => {
     const cat = skill.category || "other";
     if (!acc[cat]) acc[cat] = [];
@@ -31,7 +30,6 @@ const Skills = () => {
   return (
     <section id="skills" className="py-20 bg-white">
       <div className="max-w-6xl mx-auto px-4">
-        {/* Title */}
         <div className="text-center mb-12">
           <span className="text-gold-400 font-medium uppercase text-sm">
             My Expertise
@@ -42,7 +40,6 @@ const Skills = () => {
           <div className="w-16 h-1 bg-gold-400 mt-4 mx-auto"></div>
         </div>
 
-        {/* Skills */}
         {loading ? (
           <div className="flex justify-center py-20">
             <div className="w-8 h-8 border-4 border-gray-200 border-t-primary-900 rounded-full animate-spin"></div>

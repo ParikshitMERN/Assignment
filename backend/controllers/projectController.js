@@ -1,9 +1,5 @@
 const Project = require("../models/Project");
-const {
-  uploadFromBuffer,
-  deleteImage,
-  deleteMultipleImages,
-} = require("../utils/cloudinaryUpload");
+const { uploadFromBuffer, deleteImage } = require("../utils/cloudinaryUpload");
 
 exports.getProjects = async (req, res) => {
   try {
@@ -43,6 +39,21 @@ exports.getProjects = async (req, res) => {
         totalItems: total,
         itemsPerPage: parseInt(limit),
       },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.getFeaturedProjects = async (req, res) => {
+  try {
+    const projects = await Project.find({ featured: true })
+      .sort({ order: 1, createdAt: -1 })
+      .limit(6);
+
+    res.status(200).json({
+      success: true,
+      data: projects,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -140,12 +151,6 @@ exports.updateProject = async (req, res) => {
         .json({ success: false, message: "Project not found" });
     }
 
-    if (project.user.toString() !== req.user._id.toString()) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Not authorized" });
-    }
-
     const updateData = { ...req.body };
 
     if (typeof req.body.technologies === "string") {
@@ -195,54 +200,21 @@ exports.deleteProject = async (req, res) => {
         .json({ success: false, message: "Project not found" });
     }
 
-    if (project.user.toString() !== req.user._id.toString()) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Not authorized" });
-    }
-
     if (project.image?.public_id) {
-      try {
-        await deleteImage(project.image.public_id);
-      } catch (e) {
-        console.log("Image deletion skipped");
-      }
+      await deleteImage(project.image.public_id);
     }
 
     if (project.images?.length > 0) {
-      try {
-        const publicIds = project.images
-          .filter((img) => img.public_id)
-          .map((img) => img.public_id);
-        if (publicIds.length > 0) await deleteMultipleImages(publicIds);
-      } catch (e) {
-        console.log("Gallery deletion skipped");
+      for (const img of project.images) {
+        if (img.public_id) {
+          await deleteImage(img.public_id);
+        }
       }
     }
 
     await Project.findByIdAndDelete(req.params.id);
 
-    res
-      .status(200)
-      .json({ success: true, message: "Project deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-exports.getFeaturedProjects = async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 6;
-
-    const projects = await Project.find({ featured: true })
-      .sort({ order: 1, createdAt: -1 })
-      .limit(limit);
-
-    res.status(200).json({
-      success: true,
-      message: "Featured projects retrieved",
-      data: projects,
-    });
+    res.json({ success: true, message: "Project deleted" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -250,22 +222,21 @@ exports.getFeaturedProjects = async (req, res) => {
 
 exports.reorderProjects = async (req, res) => {
   try {
-    const { orders } = req.body;
+    const { projectIds } = req.body;
 
-    if (!Array.isArray(orders)) {
+    if (!Array.isArray(projectIds)) {
       return res
         .status(400)
-        .json({ success: false, message: "Orders must be an array" });
+        .json({ success: false, message: "projectIds must be an array" });
     }
 
-    const updatePromises = orders.map(({ id, order }) =>
-      Project.findByIdAndUpdate(id, { order }),
+    const updatePromises = projectIds.map((id, index) =>
+      Project.findByIdAndUpdate(id, { order: index }),
     );
+
     await Promise.all(updatePromises);
 
-    res
-      .status(200)
-      .json({ success: true, message: "Projects reordered successfully" });
+    res.json({ success: true, message: "Projects reordered" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -274,6 +245,7 @@ exports.reorderProjects = async (req, res) => {
 exports.deleteProjectImage = async (req, res) => {
   try {
     const { id, imageId } = req.params;
+
     const project = await Project.findById(id);
 
     if (!project) {
@@ -282,14 +254,8 @@ exports.deleteProjectImage = async (req, res) => {
         .json({ success: false, message: "Project not found" });
     }
 
-    if (project.user.toString() !== req.user._id.toString()) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Not authorized" });
-    }
-
     const imageIndex = project.images.findIndex(
-      (img) => img._id.toString() === imageId,
+      (img) => img.public_id === imageId || img._id.toString() === imageId,
     );
 
     if (imageIndex === -1) {
@@ -298,20 +264,15 @@ exports.deleteProjectImage = async (req, res) => {
         .json({ success: false, message: "Image not found" });
     }
 
-    if (project.images[imageIndex].public_id) {
-      try {
-        await deleteImage(project.images[imageIndex].public_id);
-      } catch (e) {
-        console.log("Cloudinary deletion skipped");
-      }
+    const image = project.images[imageIndex];
+    if (image.public_id) {
+      await deleteImage(image.public_id);
     }
 
     project.images.splice(imageIndex, 1);
     await project.save();
 
-    res
-      .status(200)
-      .json({ success: true, message: "Image deleted", data: project });
+    res.json({ success: true, message: "Image deleted" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
