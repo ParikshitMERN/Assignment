@@ -1,7 +1,7 @@
 import axios from "axios";
-
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 const API = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: API_URL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -65,7 +65,7 @@ export const skillsAPI = {
   delete: (id) => API.delete(`/skills/${id}`),
 };
 
-// Contact API
+// Contact APIs
 export const contactAPI = {
   submit: (data) => API.post("/contact", data),
   getAll: () => API.get("/contact"),
